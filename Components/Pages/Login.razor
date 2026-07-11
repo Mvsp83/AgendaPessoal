@@ -1,0 +1,89 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout LayoutVazio
+@inject ContaService Conta
+
+<PageTitle>Entrar — Minha Agenda</PageTitle>
+
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0A0A0A; padding: 16px; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <div style="width: min(400px, 100%); background: #161616; border: 1px solid #262626; border-radius: 12px; padding: 32px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="font-size: 40px;">🗓️</div>
+            <div style="color: #FFC107; font-size: 22px; font-weight: 600;">Minha Agenda</div>
+            <div style="color: #A8A8A8; font-size: 14px; margin-top: 4px;">
+                @(_primeiroAcesso ? "Primeiro acesso: crie sua conta" : "Entre para continuar")
+            </div>
+        </div>
+
+        @if (_mensagemDeErro != null)
+        {
+            <div style="background: #2A1414; border: 1px solid #5C2626; color: #F09595; font-size: 14px; border-radius: 8px; padding: 10px 12px; margin-bottom: 16px;">
+                @_mensagemDeErro
+            </div>
+        }
+
+        @if (_carregado)
+        {
+            @if (_primeiroAcesso)
+            {
+                <form method="post" action="/api/conta/criar">
+                    <input name="usuario" placeholder="Escolha um usuário (mín. 3 letras)" required minlength="3"
+                           style="@EstiloCampo" autocomplete="username" />
+                    <input name="senha" type="password" placeholder="Escolha uma senha (mín. 6 caracteres)" required minlength="6"
+                           style="@EstiloCampo" autocomplete="new-password" />
+                    <input name="confirmar" type="password" placeholder="Confirme a senha" required minlength="6"
+                           style="@EstiloCampo" autocomplete="new-password" />
+                    <button type="submit" style="@EstiloBotao">Criar conta e entrar</button>
+                </form>
+            }
+            else
+            {
+                <form method="post" action="/api/conta/entrar">
+                    <input name="usuario" placeholder="Usuário" required
+                           style="@EstiloCampo" autocomplete="username" />
+                    <input name="senha" type="password" placeholder="Senha" required
+                           style="@EstiloCampo" autocomplete="current-password" />
+                    <button type="submit" style="@EstiloBotao">Entrar</button>
+                </form>
+            }
+        }
+
+        <div style="text-align: center; color: #6E6E6E; font-size: 12px; margin-top: 24px;">
+            v@(Versao) · Desenvolvido por: eMeVe83
+        </div>
+    </div>
+</div>
+
+@code {
+    private const string EstiloCampo =
+        "width: 100%; box-sizing: border-box; padding: 12px 14px; margin-bottom: 12px; " +
+        "background: #0F0F0F; border: 1px solid #333; border-radius: 8px; " +
+        "color: #EDEDED; font-size: 15px; outline-color: #FFC107;";
+
+    private const string EstiloBotao =
+        "width: 100%; padding: 12px; margin-top: 4px; background: #FFC107; color: #1A1300; " +
+        "border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;";
+
+    private static readonly string Versao =
+        typeof(Login).Assembly.GetName().Version?.ToString(3) ?? "1.0.1";
+
+    [SupplyParameterFromQuery(Name = "erro")]
+    public int? Erro { get; set; }
+
+    private bool _carregado;
+    private bool _primeiroAcesso;
+
+    private string? _mensagemDeErro => Erro switch
+    {
+        1 => "Usuário ou senha incorretos.",
+        2 => "As senhas não conferem.",
+        3 => "Usuário precisa de 3+ letras e senha de 6+ caracteres.",
+        _ => null
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _primeiroAcesso = !await Conta.TemUsuarioAsync();
+        _carregado = true;
+    }
+}

@@ -1,0 +1,112 @@
+@page "/temas"
+@inject TemaService ServicoTemas
+@inject IDialogService Dialogos
+
+<PageTitle>Temas</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Temas</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="opacity:.7;">
+    Temas agrupam seus itens em grandes áreas (Saúde, Trabalho...). Ao excluir um tema, os itens dele ficam "sem tema".
+</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center flex-wrap" style="gap: 8px;">
+        <MudTextField T="string" @bind-Value="_nome" Label="@(_editando == null ? "Novo tema" : "Renomear tema")"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 200px;" />
+        <MudSelect T="string" @bind-Value="_cor" Label="Cor" Variant="Variant.Outlined" Margin="Margin.Dense"
+                   Style="min-width: 160px;">
+            @foreach (var cor in Cores)
+            {
+                <MudSelectItem T="string" Value="@cor.Valor">
+                    <span style="display:inline-block;width:14px;height:14px;border-radius:7px;background:@cor.Valor;margin-right:8px;vertical-align:middle;"></span>@cor.Nome
+                </MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Salvar">
+            @(_editando == null ? "Adicionar" : "Salvar")
+        </MudButton>
+        @if (_editando != null)
+        {
+            <MudButton Variant="Variant.Text" OnClick="CancelarEdicao">Cancelar</MudButton>
+        }
+    </div>
+</MudPaper>
+
+@foreach (var tema in _temas)
+{
+    <MudPaper Class="pa-3 mb-2 d-flex align-center" Elevation="1">
+        <MudChip T="string" Style="@($"background:{tema.Cor}; color:white;")">@tema.Nome</MudChip>
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Editar(tema))" />
+        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                       OnClick="@(() => Excluir(tema))" />
+    </MudPaper>
+}
+
+@code {
+    private record CorOpcao(string Nome, string Valor);
+
+    private static readonly CorOpcao[] Cores =
+    {
+        new("Azul", "#1E88E5"),
+        new("Roxo", "#7C4DFF"),
+        new("Verde", "#43A047"),
+        new("Laranja", "#FB8C00"),
+        new("Vermelho", "#E53935"),
+        new("Rosa", "#D81B60"),
+        new("Ciano", "#00ACC1"),
+        new("Marrom", "#6D4C41"),
+        new("Cinza", "#546E7A")
+    };
+
+    private List<Tema> _temas = new();
+    private string _nome = "";
+    private string _cor = "#1E88E5";
+    private Tema? _editando;
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar() => _temas = await ServicoTemas.ListarAsync();
+
+    private void Editar(Tema tema)
+    {
+        _editando = tema;
+        _nome = tema.Nome;
+        _cor = tema.Cor;
+    }
+
+    private void CancelarEdicao()
+    {
+        _editando = null;
+        _nome = "";
+        _cor = "#1E88E5";
+    }
+
+    private async Task Salvar()
+    {
+        var nome = _nome.Trim();
+        if (nome == "")
+            return;
+
+        await ServicoTemas.SalvarAsync(new Tema
+        {
+            Id = _editando?.Id ?? 0,
+            Nome = nome,
+            Cor = _cor
+        });
+        CancelarEdicao();
+        await Carregar();
+    }
+
+    private async Task Excluir(Tema tema)
+    {
+        var confirmado = await Dialogos.ShowMessageBoxAsync("Excluir tema",
+            $"Excluir o tema \"{tema.Nome}\"? Os itens dele ficarão sem tema.",
+            yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmado == true)
+        {
+            await ServicoTemas.ExcluirAsync(tema.Id);
+            await Carregar();
+        }
+    }
+}

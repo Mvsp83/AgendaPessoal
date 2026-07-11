@@ -1,0 +1,87 @@
+@page "/itens"
+@inject ItemService ServicoItens
+@inject TemaService ServicoTemas
+
+<PageTitle>Itens e notas</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Itens e notas</MudText>
+
+<MudPaper Class="pa-3 mb-4">
+    <MudGrid Spacing="2">
+        <MudItem xs="12">
+            <MudTextField T="string" @bind-Value="_busca" @bind-Value:after="Carregar"
+                          Immediate="true" DebounceInterval="400" Clearable="true"
+                          Placeholder="Pesquisar em títulos e conteúdos..."
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="int?" @bind-Value="_temaId" @bind-Value:after="Carregar" Label="Tema"
+                       Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem T="int?" Value="-1">(Sem tema)</MudSelectItem>
+                @foreach (var tema in _temas)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)tema.Id)">@tema.Nome</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="string" @bind-Value="_tag" @bind-Value:after="Carregar" Label="Tag"
+                       Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var tag in _tags)
+                {
+                    <MudSelectItem T="string" Value="@tag.Nome">@tag.Nome</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="StatusItem?" @bind-Value="_status" @bind-Value:after="Carregar" Label="Status"
+                       Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem T="StatusItem?" Value="StatusItem.Ativo">Ativos</MudSelectItem>
+                <MudSelectItem T="StatusItem?" Value="StatusItem.Concluido">Concluídos</MudSelectItem>
+                <MudSelectItem T="StatusItem?" Value="StatusItem.Arquivado">Arquivados</MudSelectItem>
+                <MudSelectItem T="StatusItem?" Value="null">Todos</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_carregando)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_itens.Count == 0)
+{
+    <MudText Typo="Typo.body1" Style="opacity:.7;">Nenhum item encontrado.</MudText>
+}
+else
+{
+    @foreach (var item in _itens)
+    {
+        <ItemCard Item="item" OnMudou="Carregar" />
+    }
+}
+
+@code {
+    private bool _carregando = true;
+    private string? _busca;
+    private int? _temaId;
+    private string? _tag;
+    private StatusItem? _status = StatusItem.Ativo;
+    private List<Item> _itens = new();
+    private List<Tema> _temas = new();
+    private List<Tag> _tags = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _temas = await ServicoTemas.ListarAsync();
+        _tags = await ServicoItens.ListarTagsAsync();
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        _itens = await ServicoItens.ListarAsync(_busca, _temaId, _tag, _status);
+        _carregando = false;
+    }
+}

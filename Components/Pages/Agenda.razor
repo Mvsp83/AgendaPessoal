@@ -1,0 +1,109 @@
+@page "/"
+@inject ItemService Itens
+@inject AniversarioService ServicoAniversarios
+
+<PageTitle>Agenda</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">@Cabecalho</MudText>
+
+@if (_carregando)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    @if (_aniversarios.Count > 0)
+    {
+        <MudPaper Class="pa-3 mb-4" Elevation="1">
+            <MudText Typo="Typo.subtitle1" Class="mb-1">
+                <MudIcon Icon="@Icons.Material.Filled.Cake" Size="Size.Small" Class="mr-1"
+                         Color="Color.Warning" />Aniversários
+            </MudText>
+            @foreach (var proximo in _aniversarios)
+            {
+                <MudText Typo="Typo.body2" Class="ml-1">@RotuloAniversario(proximo)</MudText>
+            }
+            <MudButton Variant="Variant.Text" Size="Size.Small" Href="/aniversarios" Class="mt-1">
+                Ver todos
+            </MudButton>
+        </MudPaper>
+    }
+
+    @if (_atrasados.Count > 0)
+    {
+        <MudText Typo="Typo.h6" Color="Color.Error" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="mr-1" />Atrasados
+        </MudText>
+        @foreach (var item in _atrasados)
+        {
+            <ItemCard Item="item" OnMudou="Carregar" />
+        }
+    }
+
+    <MudText Typo="Typo.h6" Class="mt-4 mb-2">Hoje</MudText>
+    @if (_hoje.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-2" Style="opacity:.7;">Nada agendado para hoje.</MudText>
+    }
+    @foreach (var item in _hoje)
+    {
+        <ItemCard Item="item" OnMudou="Carregar" />
+    }
+
+    <MudText Typo="Typo.h6" Class="mt-4 mb-2">Próximos 7 dias</MudText>
+    @if (_proximos.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-2" Style="opacity:.7;">Nada agendado para os próximos dias.</MudText>
+    }
+    @foreach (var item in _proximos)
+    {
+        <ItemCard Item="item" OnMudou="Carregar" />
+    }
+
+    @if (_semData > 0)
+    {
+        <MudButton Class="mt-6" Variant="Variant.Text" Href="/itens" StartIcon="@Icons.Material.Filled.Inbox">
+            @_semData @(_semData == 1 ? "nota sem data" : "notas sem data") — ver tudo
+        </MudButton>
+    }
+}
+
+@code {
+    private bool _carregando = true;
+    private List<Item> _atrasados = new();
+    private List<Item> _hoje = new();
+    private List<Item> _proximos = new();
+    private List<AniversarioProximo> _aniversarios = new();
+    private int _semData;
+
+    private static string Cabecalho
+    {
+        get
+        {
+            var texto = FusoHorario.Agora().ToString("dddd, dd 'de' MMMM 'de' yyyy");
+            return char.ToUpper(texto[0]) + texto[1..];
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        (_atrasados, _hoje, _proximos, _semData) = await Itens.ObterAgendaAsync();
+        _aniversarios = await ServicoAniversarios.ProximosAsync(7);
+        _carregando = false;
+    }
+
+    private static string RotuloAniversario(AniversarioProximo proximo)
+    {
+        var quando = proximo.DiasRestantes switch
+        {
+            0 => "🎉 Hoje",
+            1 => $"Amanhã ({proximo.Data:dd/MM})",
+            _ => proximo.Data.ToString("ddd dd/MM")
+        };
+        var idade = proximo.Idade == null ? "" :
+            proximo.DiasRestantes == 0 ? $" ({proximo.Idade} anos)" : $" (fará {proximo.Idade})";
+        return $"{quando} — {proximo.Aniversario.Nome}{idade}";
+    }
+}

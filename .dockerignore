@@ -1,0 +1,7 @@
+bin/
+obj/
+dados/
+*.db
+.git/
+.claude/
+README.md

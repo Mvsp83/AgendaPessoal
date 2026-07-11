@@ -1,0 +1,227 @@
+@page "/aniversarios"
+@inject AniversarioService ServicoAniversarios
+@inject TemaService ServicoTemas
+@inject IDialogService Dialogos
+@inject ISnackbar Snackbar
+
+<PageTitle>Aniversários</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Aniversários</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-2">@(_editando == null ? "Novo aniversário" : $"Editando: {_editando.Nome}")</MudText>
+    <MudGrid Spacing="2">
+        <MudItem xs="12" sm="6">
+            <MudTextField T="string" @bind-Value="_form.Nome" Label="Nome da pessoa"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudSelect T="int?" @bind-Value="_form.TemaId" Label="Grupo" Clearable="true"
+                       Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var tema in _temas)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)tema.Id)">@tema.Nome</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="4" sm="2">
+            <MudNumericField T="int" @bind-Value="_form.Dia" Label="Dia" Min="1" Max="31"
+                             Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="8" sm="6">
+            <MudSelect T="int" @bind-Value="_form.Mes" Label="Mês"
+                       Variant="Variant.Outlined" Margin="Margin.Dense">
+                @for (var mes = 1; mes <= 12; mes++)
+                {
+                    var valor = mes;
+                    <MudSelectItem T="int" Value="@valor">@NomesDosMeses[valor - 1]</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudNumericField T="int?" @bind-Value="_form.Ano" Label="Ano (opcional, mostra a idade)"
+                             Min="1900" Max="2100" Clearable="true" HideSpinButtons="true"
+                             Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudTextField T="string" @bind-Value="_form.Observacoes"
+                          Label="Observações (ideias de presente, telefone...)"
+                          Lines="2" Sizing="InputSizing.Auto" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12" sm="4" Class="d-flex align-center">
+            <MudSwitch T="bool" @bind-Value="_form.LembreteAtivo" Color="Color.Primary"
+                       Label="Avisar no WhatsApp" />
+        </MudItem>
+        <MudItem xs="6" sm="4">
+            <MudSelect T="int" @bind-Value="_form.HoraAviso" Label="Avisar a partir das"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!_form.LembreteAtivo)">
+                @foreach (var hora in new[] { 0, 6, 7, 8, 9, 10, 12, 18 })
+                {
+                    var valor = hora;
+                    <MudSelectItem T="int" Value="@valor">@($"{valor:00}:00")</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" sm="4">
+            <MudSelect T="int" @bind-Value="_form.DiasAntecedencia" Label="Aviso antecipado"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(!_form.LembreteAtivo)">
+                <MudSelectItem T="int" Value="0">Sem aviso antecipado</MudSelectItem>
+                <MudSelectItem T="int" Value="1">1 dia antes</MudSelectItem>
+                <MudSelectItem T="int" Value="2">2 dias antes</MudSelectItem>
+                <MudSelectItem T="int" Value="3">3 dias antes</MudSelectItem>
+                <MudSelectItem T="int" Value="7">1 semana antes</MudSelectItem>
+                <MudSelectItem T="int" Value="15">15 dias antes</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+    <div class="d-flex mt-3" style="gap: 8px;">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Salvar"
+                   StartIcon="@Icons.Material.Filled.Save">
+            @(_editando == null ? "Adicionar" : "Salvar")
+        </MudButton>
+        @if (_editando != null)
+        {
+            <MudButton Variant="Variant.Text" OnClick="CancelarEdicao">Cancelar</MudButton>
+        }
+    </div>
+</MudPaper>
+
+@if (_lista.Count == 0)
+{
+    <MudText Typo="Typo.body1" Style="opacity:.7;">Nenhum aniversário cadastrado ainda.</MudText>
+}
+else
+{
+    @foreach (var proximo in _lista)
+    {
+        <MudPaper Class="pa-3 mb-2 d-flex align-center gap-3" Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.Cake"
+                     Color="@(proximo.DiasRestantes == 0 ? Color.Warning : Color.Default)" />
+            <div style="flex: 1; min-width: 0;">
+                <MudText Typo="Typo.subtitle1">@proximo.Aniversario.Nome</MudText>
+                <div class="d-flex flex-wrap align-center" style="gap: 4px;">
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(proximo.DiasRestantes == 0 ? Color.Warning : Color.Default)">
+                        @RotuloData(proximo)
+                    </MudChip>
+                    @if (proximo.Idade != null)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                            @(proximo.DiasRestantes == 0 ? $"{proximo.Idade} anos" : $"fará {proximo.Idade} anos")
+                        </MudChip>
+                    }
+                    @if (proximo.Aniversario.Tema != null)
+                    {
+                        <MudChip T="string" Size="Size.Small"
+                                 Style="@($"background:{proximo.Aniversario.Tema.Cor}; color:white;")">
+                            @proximo.Aniversario.Tema.Nome
+                        </MudChip>
+                    }
+                    @if (proximo.Aniversario.LembreteAtivo)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Size="Size.Small"
+                                 Color="Color.Warning" title="Aviso no WhatsApp ativado" />
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(proximo.Aniversario.Observacoes))
+                {
+                    <MudText Typo="Typo.body2" Style="opacity:.7;">@proximo.Aniversario.Observacoes</MudText>
+                }
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => Editar(proximo.Aniversario))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                           OnClick="@(() => Excluir(proximo.Aniversario))" />
+        </MudPaper>
+    }
+}
+
+@code {
+    private static readonly string[] NomesDosMeses =
+    {
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    };
+
+    private List<AniversarioProximo> _lista = new();
+    private List<Tema> _temas = new();
+    private Aniversario _form = new();
+    private Aniversario? _editando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _temas = await ServicoTemas.ListarAsync();
+        await Carregar();
+    }
+
+    private async Task Carregar() => _lista = await ServicoAniversarios.ListarAsync();
+
+    private static string RotuloData(AniversarioProximo proximo) => proximo.DiasRestantes switch
+    {
+        0 => "🎉 é hoje!",
+        1 => $"{proximo.Data:dd/MM} — amanhã",
+        _ => $"{proximo.Data:dd/MM} — faltam {proximo.DiasRestantes} dias"
+    };
+
+    private void Editar(Aniversario aniversario)
+    {
+        _editando = aniversario;
+        _form = new Aniversario
+        {
+            Id = aniversario.Id,
+            Nome = aniversario.Nome,
+            Dia = aniversario.Dia,
+            Mes = aniversario.Mes,
+            Ano = aniversario.Ano,
+            TemaId = aniversario.TemaId,
+            Observacoes = aniversario.Observacoes,
+            LembreteAtivo = aniversario.LembreteAtivo,
+            HoraAviso = aniversario.HoraAviso,
+            DiasAntecedencia = aniversario.DiasAntecedencia,
+            UltimoAnoAvisado = aniversario.UltimoAnoAvisado,
+            UltimoAnoAvisoAntecipado = aniversario.UltimoAnoAvisoAntecipado,
+            CriadoEm = aniversario.CriadoEm
+        };
+    }
+
+    private void CancelarEdicao()
+    {
+        _editando = null;
+        _form = new Aniversario();
+    }
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_form.Nome))
+        {
+            Snackbar.Add("Informe o nome da pessoa.", Severity.Warning);
+            return;
+        }
+        // 29/02 é aceito; DaysInMonth de um ano bissexto valida o limite de cada mês
+        if (_form.Mes is < 1 or > 12 || _form.Dia < 1 || _form.Dia > DateTime.DaysInMonth(2000, _form.Mes))
+        {
+            Snackbar.Add("Dia ou mês inválido.", Severity.Warning);
+            return;
+        }
+
+        _form.Nome = _form.Nome.Trim();
+        await ServicoAniversarios.SalvarAsync(_form);
+        Snackbar.Add("Salvo!", Severity.Success);
+        CancelarEdicao();
+        await Carregar();
+    }
+
+    private async Task Excluir(Aniversario aniversario)
+    {
+        var confirmado = await Dialogos.ShowMessageBoxAsync("Excluir aniversário",
+            $"Excluir o aniversário de \"{aniversario.Nome}\"?",
+            yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmado == true)
+        {
+            await ServicoAniversarios.ExcluirAsync(aniversario.Id);
+            if (_editando?.Id == aniversario.Id)
+                CancelarEdicao();
+            await Carregar();
+        }
+    }
+}

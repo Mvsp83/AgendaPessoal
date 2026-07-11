@@ -1,0 +1,172 @@
+@page "/configuracoes"
+@inject ConfiguracaoService Config
+@inject ContaService Conta
+@inject INotificador Notificador
+@inject LembreteService Lembretes
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Configurações</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Configurações</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.Chat" Size="Size.Small" Class="mr-1" />WhatsApp (CallMeBot)
+    </MudText>
+    <MudText Typo="Typo.body2" Class="mb-3" Style="opacity:.8;">
+        O CallMeBot é um serviço gratuito que envia mensagens para o seu próprio WhatsApp. Para ativar:
+        siga as instruções em <MudLink Href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" Target="_blank">callmebot.com</MudLink>
+        (adicione o número do bot aos contatos e envie a mensagem de autorização pelo WhatsApp).
+        Você receberá uma API key — preencha os campos abaixo.
+    </MudText>
+    <MudStack Spacing="2">
+        <MudTextField T="string" @bind-Value="_telefone" Label="Seu telefone com DDI (ex.: +5511999999999)"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <MudTextField T="string" @bind-Value="_apiKey" Label="API key do CallMeBot"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <div class="d-flex" style="gap: 8px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SalvarWhatsApp">Salvar</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="EnviarTeste" Disabled="_enviandoTeste"
+                       StartIcon="@Icons.Material.Filled.Send">
+                @(_enviandoTeste ? "Enviando..." : "Enviar mensagem de teste")
+            </MudButton>
+        </div>
+    </MudStack>
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.Alarm" Size="Size.Small" Class="mr-1" />Verificação externa (cron)
+    </MudText>
+    <MudText Typo="Typo.body2" Class="mb-3" Style="opacity:.8;">
+        Em hospedagem gratuita o app "hiberna" quando fica ocioso e os lembretes não disparam.
+        Cadastre a URL abaixo em um serviço de cron gratuito (ex.: cron-job.org) para chamá-la a cada
+        5–10 minutos: isso acorda o app e dispara os lembretes pendentes.
+    </MudText>
+    @if (string.IsNullOrEmpty(_token))
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GerarToken">Gerar token</MudButton>
+    }
+    else
+    {
+        <MudTextField T="string" Value="@UrlVerificacao" ReadOnly="true" Label="URL para o cron"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+        <MudButton Variant="Variant.Text" OnClick="GerarToken">Gerar novo token (invalida o atual)</MudButton>
+    }
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4">
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" Class="mr-1" />Conta
+    </MudText>
+    <MudText Typo="Typo.body2" Class="mb-3" Style="opacity:.8;">
+        Usuário: <b>@_usuario</b>. Para trocar a senha, informe a atual e a nova.
+    </MudText>
+    <MudStack Spacing="2">
+        <MudTextField T="string" @bind-Value="_senhaAtual" Label="Senha atual" InputType="InputType.Password"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <MudTextField T="string" @bind-Value="_novaSenha" Label="Nova senha (mín. 6 caracteres)" InputType="InputType.Password"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <MudTextField T="string" @bind-Value="_confirmarSenha" Label="Confirmar nova senha" InputType="InputType.Password"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="TrocarSenha">Trocar senha</MudButton>
+        </div>
+    </MudStack>
+</MudPaper>
+
+<MudPaper Class="pa-4">
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" Class="mr-1" />Últimos lembretes enviados
+    </MudText>
+    @if (_notificacoes.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Style="opacity:.7;">Nenhum lembrete enviado ainda.</MudText>
+    }
+    else
+    {
+        @foreach (var notificacao in _notificacoes)
+        {
+            <div class="d-flex align-center mb-1" style="gap: 8px;">
+                <MudIcon Icon="@(notificacao.Sucesso ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)"
+                         Color="@(notificacao.Sucesso ? Color.Success : Color.Error)" Size="Size.Small" />
+                <MudText Typo="Typo.body2">
+                    @notificacao.EnviadaEm.ToString("dd/MM HH:mm") — @notificacao.TituloItem
+                    @if (!notificacao.Sucesso)
+                    {
+                        <span style="opacity:.7;"> (@notificacao.Detalhe)</span>
+                    }
+                </MudText>
+            </div>
+        }
+    }
+</MudPaper>
+
+@code {
+    private string? _telefone;
+    private string? _apiKey;
+    private string? _token;
+    private bool _enviandoTeste;
+    private List<Notificacao> _notificacoes = new();
+    private string? _usuario;
+    private string? _senhaAtual;
+    private string? _novaSenha;
+    private string? _confirmarSenha;
+
+    private string UrlVerificacao => $"{Nav.BaseUri}api/lembretes/verificar?token={_token}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _telefone = await Config.ObterAsync(ConfiguracaoService.CallMeBotTelefone);
+        _apiKey = await Config.ObterAsync(ConfiguracaoService.CallMeBotApiKey);
+        _token = await Config.ObterAsync(ConfiguracaoService.TokenVerificacao);
+        _notificacoes = await Lembretes.ListarNotificacoesAsync();
+        _usuario = await Conta.ObterUsuarioAsync();
+    }
+
+    private async Task TrocarSenha()
+    {
+        if (string.IsNullOrEmpty(_novaSenha) || _novaSenha.Length < 6)
+        {
+            Snackbar.Add("A nova senha precisa de pelo menos 6 caracteres.", Severity.Warning);
+            return;
+        }
+        if (_novaSenha != _confirmarSenha)
+        {
+            Snackbar.Add("As senhas não conferem.", Severity.Warning);
+            return;
+        }
+        if (!await Conta.TrocarSenhaAsync(_senhaAtual ?? "", _novaSenha))
+        {
+            Snackbar.Add("Senha atual incorreta.", Severity.Error);
+            return;
+        }
+        _senhaAtual = _novaSenha = _confirmarSenha = null;
+        Snackbar.Add("Senha alterada.", Severity.Success);
+    }
+
+    private async Task SalvarWhatsApp()
+    {
+        await Config.SalvarAsync(ConfiguracaoService.CallMeBotTelefone, _telefone?.Trim());
+        await Config.SalvarAsync(ConfiguracaoService.CallMeBotApiKey, _apiKey?.Trim());
+        Snackbar.Add("Configuração salva.", Severity.Success);
+    }
+
+    private async Task EnviarTeste()
+    {
+        _enviandoTeste = true;
+        await SalvarWhatsApp();
+        var (sucesso, detalhe) = await Notificador.EnviarAsync("✅ Teste do Minha Agenda: as notificações estão funcionando!");
+        _enviandoTeste = false;
+        Snackbar.Add(sucesso ? "Mensagem de teste enviada! Confira seu WhatsApp." : $"Falha: {detalhe}",
+            sucesso ? Severity.Success : Severity.Error);
+    }
+
+    private async Task GerarToken()
+    {
+        _token = Guid.NewGuid().ToString("N");
+        await Config.SalvarAsync(ConfiguracaoService.TokenVerificacao, _token);
+        Snackbar.Add("Token gerado. Atualize o cron com a nova URL.", Severity.Info);
+    }
+}

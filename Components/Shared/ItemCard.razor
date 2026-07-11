@@ -1,0 +1,63 @@
+@inject ItemService Itens
+@inject NavigationManager Nav
+
+<MudPaper Class="pa-3 mb-2 d-flex align-center gap-3" Elevation="1">
+    <MudIconButton Icon="@(Item.Status == StatusItem.Concluido ? Icons.Material.Filled.CheckCircle : Icons.Material.Outlined.RadioButtonUnchecked)"
+                   Color="@(Item.Status == StatusItem.Concluido ? Color.Success : Color.Default)"
+                   Size="Size.Small"
+                   title="Concluir / reabrir"
+                   OnClick="AlternarConclusao" />
+    <div style="flex: 1; cursor: pointer; min-width: 0;" @onclick="Abrir">
+        <MudText Typo="Typo.subtitle1"
+                 Style="@(Item.Status == StatusItem.Concluido ? "text-decoration: line-through; opacity: .6;" : null)">
+            @Item.Titulo
+        </MudText>
+        <div class="d-flex flex-wrap align-center" style="gap: 4px;">
+            @if (Item.DataHora != null)
+            {
+                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Schedule"
+                         Color="@(Atrasado ? Color.Error : Color.Default)">
+                    @Item.DataHora.Value.ToString("ddd dd/MM HH:mm")
+                </MudChip>
+            }
+            @if (Item.Tema != null)
+            {
+                <MudChip T="string" Size="Size.Small" Style="@($"background:{Item.Tema.Cor}; color:white;")">
+                    @Item.Tema.Nome
+                </MudChip>
+            }
+            @foreach (var tag in Item.Tags)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@tag.Nome</MudChip>
+            }
+            @if (Item.LembreteAtivo)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Size="Size.Small" Color="Color.Warning"
+                         title="Lembrete ativado" />
+            }
+            @if (Item.Recorrencia != Recorrencia.Nenhuma)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Repeat" Size="Size.Small" Color="Color.Info"
+                         title="Recorrente" />
+            }
+        </div>
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public Item Item { get; set; } = default!;
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    private bool Atrasado =>
+        Item.Status == StatusItem.Ativo && Item.DataHora != null && Item.DataHora < FusoHorario.Agora();
+
+    private void Abrir() => Nav.NavigateTo($"/item/{Item.Id}");
+
+    private async Task AlternarConclusao()
+    {
+        var novo = Item.Status == StatusItem.Concluido ? StatusItem.Ativo : StatusItem.Concluido;
+        await Itens.DefinirStatusAsync(Item.Id, novo);
+        Item.Status = novo;
+        await OnMudou.InvokeAsync();
+    }
+}

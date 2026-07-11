@@ -1,0 +1,83 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider @ref="_provedor" @bind-IsDarkMode="_modoEscuro" Theme="TemaDoApp.Tema" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@(() => _menuAberto = !_menuAberto)" />
+        <MudText Typo="Typo.h6" Class="ml-2">Minha Agenda</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@(_modoEscuro ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" title="Alternar claro/escuro" OnClick="AlternarModo" />
+        <MudButton Href="/item/novo" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add">Novo</MudButton>
+        <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" title="Sair"
+                       Href="/api/conta/sair" data-enhance-nav="false" />
+    </MudAppBar>
+    <MudDrawer @bind-Open="_menuAberto" Elevation="2">
+        <div class="d-flex flex-column" style="height: 100%;">
+            <MudNavMenu>
+                <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Today">Agenda</MudNavLink>
+                <MudNavLink Href="/itens" Icon="@Icons.Material.Filled.Notes">Itens e notas</MudNavLink>
+                <MudNavLink Href="/aniversarios" Icon="@Icons.Material.Filled.Cake">Aniversários</MudNavLink>
+                <MudNavLink Href="/temas" Icon="@Icons.Material.Filled.Category">Temas</MudNavLink>
+                <MudNavLink Href="/configuracoes" Icon="@Icons.Material.Filled.Settings">Configurações</MudNavLink>
+            </MudNavMenu>
+            <div style="margin-top: auto; padding: 12px 16px; font-size: 12px; opacity: .6;">
+                v@(Versao)<br />
+                Desenvolvido por: eMeVe83
+            </div>
+        </div>
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private static readonly string Versao =
+        typeof(MainLayout).Assembly.GetName().Version?.ToString(3) ?? "1.0.1";
+
+    private bool _menuAberto = true;
+    private bool _modoEscuro = true;
+    private bool _escolhaManual;
+    private MudThemeProvider _provedor = default!;
+
+    protected override async Task OnAfterRenderAsync(bool primeiraVez)
+    {
+        if (primeiraVez)
+        {
+            _modoEscuro = await _provedor.GetSystemDarkModeAsync();
+            await _provedor.WatchSystemDarkModeAsync(SistemaMudou);
+            StateHasChanged();
+        }
+    }
+
+    private Task SistemaMudou(bool escuro)
+    {
+        if (!_escolhaManual)
+        {
+            _modoEscuro = escuro;
+            return InvokeAsync(StateHasChanged);
+        }
+        return Task.CompletedTask;
+    }
+
+    private void AlternarModo()
+    {
+        _escolhaManual = true;
+        _modoEscuro = !_modoEscuro;
+    }
+}

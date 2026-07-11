@@ -1,0 +1,213 @@
+@page "/item/novo"
+@page "/item/{Id:int}"
+@inject ItemService Itens
+@inject TemaService Temas
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogos
+
+<PageTitle>@(_ehNovo ? "Novo item" : "Editar item")</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">@(_ehNovo ? "Novo item" : "Editar item")</MudText>
+
+@if (_item == null)
+{
+    @if (_naoEncontrado)
+    {
+        <MudAlert Severity="Severity.Warning">Item não encontrado.</MudAlert>
+    }
+    else
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+}
+else
+{
+    <MudPaper Class="pa-4">
+        <MudStack Spacing="3">
+            <MudTextField T="string" @bind-Value="_item.Titulo" Label="Título" Variant="Variant.Outlined"
+                          AutoFocus="true" />
+            <MudTextField T="string" @bind-Value="_item.Conteudo" Label="Conteúdo / anotações (links, comandos, detalhes...)"
+                          Lines="6" Sizing="InputSizing.Auto" Variant="Variant.Outlined" />
+
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" @bind-Value="_item.TemaId" Label="Tema" Clearable="true"
+                               Variant="Variant.Outlined">
+                        @foreach (var tema in _temas)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)tema.Id)">@tema.Nome</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" @bind-Value="_novaTag" Label="Tags" Variant="Variant.Outlined"
+                                  Immediate="true" HelperText="Digite e pressione Enter ou +"
+                                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Add"
+                                  OnAdornmentClick="AdicionarTag" OnKeyDown="TagTecla" />
+                </MudItem>
+            </MudGrid>
+            @if (_tags.Count > 0)
+            {
+                <div class="d-flex flex-wrap" style="gap: 4px;">
+                    @foreach (var tag in _tags)
+                    {
+                        <MudChip T="string" Size="Size.Small" OnClose="@(() => _tags.Remove(tag))">@tag</MudChip>
+                    }
+                </div>
+            }
+
+            <MudDivider />
+            <MudText Typo="Typo.subtitle1">Agendamento e lembrete</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" @bind-Value="_dataHoraTexto" Label="Data e hora"
+                                  InputType="InputType.DateTimeLocal"
+                                  Variant="Variant.Outlined" Clearable="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Recorrencia" @bind-Value="_item.Recorrencia" Label="Repetir"
+                               Variant="Variant.Outlined">
+                        <MudSelectItem Value="Recorrencia.Nenhuma">Não repetir</MudSelectItem>
+                        <MudSelectItem Value="Recorrencia.Diaria">Todos os dias</MudSelectItem>
+                        <MudSelectItem Value="Recorrencia.Semanal">Toda semana</MudSelectItem>
+                        <MudSelectItem Value="Recorrencia.Quinzenal">A cada 15 dias</MudSelectItem>
+                        <MudSelectItem Value="Recorrencia.Mensal">Todo mês</MudSelectItem>
+                        <MudSelectItem Value="Recorrencia.Anual">Todo ano</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudSwitch T="bool" @bind-Value="_item.LembreteAtivo" Color="Color.Primary"
+                               Label="Enviar lembrete (WhatsApp)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int" @bind-Value="_item.AvisarMinutosAntes" Label="Avisar"
+                               Variant="Variant.Outlined" Disabled="@(!_item.LembreteAtivo)">
+                        <MudSelectItem Value="0">Na hora</MudSelectItem>
+                        <MudSelectItem Value="10">10 minutos antes</MudSelectItem>
+                        <MudSelectItem Value="30">30 minutos antes</MudSelectItem>
+                        <MudSelectItem Value="60">1 hora antes</MudSelectItem>
+                        <MudSelectItem Value="1440">1 dia antes</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+
+            @if (!_ehNovo)
+            {
+                <MudSelect T="StatusItem" @bind-Value="_item.Status" Label="Status" Variant="Variant.Outlined">
+                    <MudSelectItem Value="StatusItem.Ativo">Ativo</MudSelectItem>
+                    <MudSelectItem Value="StatusItem.Concluido">Concluído</MudSelectItem>
+                    <MudSelectItem Value="StatusItem.Arquivado">Arquivado</MudSelectItem>
+                </MudSelect>
+            }
+
+            <div class="d-flex align-center mt-2" style="gap: 8px;">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Salvar"
+                           Disabled="_salvando" StartIcon="@Icons.Material.Filled.Save">Salvar</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo(_ehNovo ? "/" : "/itens"))">
+                    Cancelar
+                </MudButton>
+                <MudSpacer />
+                @if (!_ehNovo)
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Delete" OnClick="Excluir">Excluir</MudButton>
+                }
+            </div>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private const string FormatoDataHora = "yyyy-MM-dd'T'HH:mm";
+
+    private Item? _item;
+    private bool _naoEncontrado;
+    private List<Tema> _temas = new();
+    private List<string> _tags = new();
+    private string _novaTag = "";
+    private string? _dataHoraTexto;
+    private bool _salvando;
+
+    private bool _ehNovo => Id == null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _temas = await Temas.ListarAsync();
+        if (Id == null)
+        {
+            _item = new Item();
+        }
+        else
+        {
+            _item = await Itens.ObterAsync(Id.Value);
+            _naoEncontrado = _item == null;
+            _tags = _item?.Tags.Select(t => t.Nome).ToList() ?? new();
+            _dataHoraTexto = _item?.DataHora?.ToString(FormatoDataHora, System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+
+    private void AdicionarTag()
+    {
+        var nome = _novaTag.Trim();
+        if (nome != "" && !_tags.Contains(nome, StringComparer.OrdinalIgnoreCase))
+            _tags.Add(nome);
+        _novaTag = "";
+    }
+
+    private void TagTecla(KeyboardEventArgs tecla)
+    {
+        if (tecla.Key == "Enter")
+            AdicionarTag();
+    }
+
+    private async Task Salvar()
+    {
+        if (string.IsNullOrWhiteSpace(_item!.Titulo))
+        {
+            Snackbar.Add("Informe o título.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_dataHoraTexto))
+        {
+            _item.DataHora = null;
+        }
+        else if (DateTime.TryParse(_dataHoraTexto, System.Globalization.CultureInfo.InvariantCulture,
+                     System.Globalization.DateTimeStyles.None, out var dataHora))
+        {
+            _item.DataHora = dataHora;
+        }
+        else
+        {
+            Snackbar.Add("Data e hora inválidas.", Severity.Warning);
+            return;
+        }
+
+        if (_item.LembreteAtivo && _item.DataHora == null)
+        {
+            Snackbar.Add("Para enviar lembrete, defina a data e hora.", Severity.Warning);
+            return;
+        }
+
+        _salvando = true;
+        AdicionarTag(); // aproveita texto que ficou no campo de tag
+        await Itens.SalvarAsync(_item, _tags);
+        Snackbar.Add("Salvo!", Severity.Success);
+        Nav.NavigateTo("/");
+    }
+
+    private async Task Excluir()
+    {
+        var confirmado = await Dialogos.ShowMessageBoxAsync("Excluir item",
+            $"Excluir \"{_item!.Titulo}\"? Essa ação não pode ser desfeita.",
+            yesText: "Excluir", cancelText: "Cancelar");
+        if (confirmado == true)
+        {
+            await Itens.ExcluirAsync(_item.Id);
+            Nav.NavigateTo("/itens");
+        }
+    }
+}

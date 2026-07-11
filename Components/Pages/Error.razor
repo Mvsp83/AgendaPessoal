@@ -1,0 +1,29 @@
+@page "/Error"
+@attribute [AllowAnonymous]
+@using System.Diagnostics
+
+<PageTitle>Erro</PageTitle>
+
+<MudAlert Severity="Severity.Error" Class="mb-4">
+    Ocorreu um erro ao processar sua solicitação.
+</MudAlert>
+
+@if (ShowRequestId)
+{
+    <MudText Typo="Typo.body2">Identificador: <code>@RequestId</code></MudText>
+}
+
+<MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Class="mt-4">
+    Voltar para a agenda
+</MudButton>
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}
