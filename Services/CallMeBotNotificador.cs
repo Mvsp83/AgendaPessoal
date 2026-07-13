@@ -23,12 +23,20 @@ public class CallMeBotNotificador(IHttpClientFactory fabricaHttp, ConfiguracaoSe
         {
             var http = fabricaHttp.CreateClient("notificador");
             var resposta = await http.GetAsync(url);
-            if (resposta.IsSuccessStatusCode)
-                return (true, "Enviado");
-
             var corpo = await resposta.Content.ReadAsStringAsync();
-            if (corpo.Length > 200) corpo = corpo[..200];
-            return (false, $"HTTP {(int)resposta.StatusCode}: {corpo}");
+
+            // O CallMeBot responde 200 até em erro; a confirmação real vem no texto
+            var texto = System.Text.RegularExpressions.Regex.Replace(corpo, "<[^>]+>", " ");
+            texto = System.Text.RegularExpressions.Regex.Replace(texto, @"\s+", " ").Trim();
+            if (texto.Length > 250) texto = texto[..250];
+
+            var confirmado = resposta.IsSuccessStatusCode
+                && (texto.Contains("queued", StringComparison.OrdinalIgnoreCase)
+                    || texto.Contains("sent", StringComparison.OrdinalIgnoreCase));
+
+            return confirmado
+                ? (true, "Enviado")
+                : (false, $"CallMeBot HTTP {(int)resposta.StatusCode}: {texto}");
         }
         catch (Exception erro)
         {
