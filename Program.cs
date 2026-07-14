@@ -1,11 +1,13 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using AgendaPessoal.Components;
 using AgendaPessoal.Data;
 using AgendaPessoal.Models;
 using AgendaPessoal.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 
@@ -28,11 +30,45 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     .AddCookie(opcoes =>
     {
         opcoes.Cookie.Name = "agenda_auth";
+        opcoes.Cookie.HttpOnly = true;
+        opcoes.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        opcoes.Cookie.SameSite = SameSiteMode.Lax;
         opcoes.LoginPath = "/login";
         opcoes.ExpireTimeSpan = TimeSpan.FromDays(30);
         opcoes.SlidingExpiration = true;
     });
 builder.Services.AddAuthorization();
+
+// Proteção contra brute-force no login: no máximo 5 tentativas por minuto por IP.
+// O app roda atrás do proxy do Render/Neon, então o IP real vem no X-Forwarded-For.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // O proxy da hospedagem não tem IP fixo conhecido; confiar na cadeia encaminhada
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+builder.Services.AddRateLimiter(opcoes =>
+{
+    opcoes.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Em vez de uma página 429 em branco, volta ao login com aviso amigável
+    opcoes.OnRejected = (contexto, _) =>
+    {
+        if (!contexto.HttpContext.Response.HasStarted)
+            contexto.HttpContext.Response.Redirect("/login?erro=4");
+        return ValueTask.CompletedTask;
+    };
+    opcoes.AddPolicy("login", http =>
+    {
+        var ip = http.Connection.RemoteIpAddress?.ToString() ?? "desconhecido";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            Window = TimeSpan.FromMinutes(1),
+            PermitLimit = 5,
+            QueueLimit = 0
+        });
+    });
+});
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpClient("notificador", c => c.Timeout = TimeSpan.FromSeconds(30));
 
@@ -63,6 +99,8 @@ builder.Services.AddHostedService<LembreteBackgroundService>();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -70,6 +108,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
@@ -87,7 +126,7 @@ app.MapPost("/api/conta/entrar", async (HttpContext http, ContaService conta) =>
         return Results.Redirect("/login?erro=1");
     await EntrarAsync(http, usuario);
     return Results.Redirect("/");
-}).DisableAntiforgery();
+}).DisableAntiforgery().RequireRateLimiting("login");
 
 app.MapPost("/api/conta/criar", async (HttpContext http, ContaService conta) =>
 {
@@ -104,7 +143,7 @@ app.MapPost("/api/conta/criar", async (HttpContext http, ContaService conta) =>
     await conta.CriarAsync(usuario, senha);
     await EntrarAsync(http, usuario);
     return Results.Redirect("/");
-}).DisableAntiforgery();
+}).DisableAntiforgery().RequireRateLimiting("login");
 
 app.MapGet("/api/conta/sair", async (HttpContext http) =>
 {

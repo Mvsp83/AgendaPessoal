@@ -65,7 +65,7 @@
         "border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;";
 
     private static readonly string Versao =
-        typeof(Login).Assembly.GetName().Version?.ToString(3) ?? "1.0.1";
+        typeof(Login).Assembly.GetName().Version?.ToString(3) ?? "1.0.3";
 
     [SupplyParameterFromQuery(Name = "erro")]
     public int? Erro { get; set; }
@@ -78,6 +78,7 @@
         1 => "Usuário ou senha incorretos.",
         2 => "As senhas não conferem.",
         3 => "Usuário precisa de 3+ letras e senha de 6+ caracteres.",
+        4 => "Muitas tentativas. Aguarde um minuto e tente novamente.",
         _ => null
     };
 
