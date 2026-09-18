@@ -6,11 +6,29 @@ namespace AgendaPessoal.Services;
 
 public class LembreteService(IDbContextFactory<AgendaDbContext> fabrica, INotificador notificador)
 {
+    // Serializa a verificação: o serviço de fundo (a cada minuto) e o cron externo podem
+    // coincidir; sem essa trava a checagem "já enviei?" não é atômica e o mesmo lembrete
+    // poderia sair duplicado no WhatsApp.
+    private readonly SemaphoreSlim _trava = new(1, 1);
+
     /// <summary>
     /// Dispara os lembretes vencidos. Chamado pelo serviço de fundo a cada minuto
     /// e pelo endpoint /api/lembretes/verificar (cron externo em hospedagem gratuita).
     /// </summary>
     public async Task<int> VerificarEDispararAsync()
+    {
+        await _trava.WaitAsync();
+        try
+        {
+            return await VerificarEDispararInternoAsync();
+        }
+        finally
+        {
+            _trava.Release();
+        }
+    }
+
+    private async Task<int> VerificarEDispararInternoAsync()
     {
         var agora = FusoHorario.Agora();
         await using var db = await fabrica.CreateDbContextAsync();

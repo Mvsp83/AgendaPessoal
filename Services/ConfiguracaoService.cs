@@ -11,6 +11,8 @@ public class ConfiguracaoService(IDbContextFactory<AgendaDbContext> fabrica)
     public const string TokenVerificacao = "token_verificacao";
     public const string LoginUsuario = "login_usuario";
     public const string LoginSenhaHash = "login_senha_hash";
+    public const string LoginFalhas = "login_falhas";
+    public const string LoginBloqueioAte = "login_bloqueio_ate";
 
     public async Task<string?> ObterAsync(string chave)
     {

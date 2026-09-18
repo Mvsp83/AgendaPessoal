@@ -104,7 +104,20 @@ app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
 }
+
+// Cabeçalhos de segurança em todas as respostas.
+// CSP restrito a 'frame-ancestors none' impede clickjacking sem quebrar os estilos inline do MudBlazor.
+app.Use(async (contexto, proximo) =>
+{
+    var cabecalhos = contexto.Response.Headers;
+    cabecalhos["X-Content-Type-Options"] = "nosniff";
+    cabecalhos["X-Frame-Options"] = "DENY";
+    cabecalhos["Referrer-Policy"] = "no-referrer";
+    cabecalhos["Content-Security-Policy"] = "frame-ancestors 'none'";
+    await proximo();
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -119,11 +132,18 @@ app.MapRazorComponents<App>()
 // Login: formulários HTML puros fazem POST aqui (cookie não pode ser gravado pelo circuito Blazor)
 app.MapPost("/api/conta/entrar", async (HttpContext http, ContaService conta) =>
 {
+    // Bloqueio por conta (backoff): trava tentativas seguidas mesmo que o atacante troque de IP
+    if (await conta.TempoDeBloqueioRestanteAsync() != null)
+        return Results.Redirect("/login?erro=5");
     var form = await http.Request.ReadFormAsync();
     var usuario = form["usuario"].ToString().Trim();
     var senha = form["senha"].ToString();
     if (!await conta.ValidarAsync(usuario, senha))
+    {
+        await conta.RegistrarFalhaAsync();
         return Results.Redirect("/login?erro=1");
+    }
+    await conta.RegistrarSucessoAsync();
     await EntrarAsync(http, usuario);
     return Results.Redirect("/");
 }).DisableAntiforgery().RequireRateLimiting("login");
@@ -199,7 +219,9 @@ static string ConverterDatabaseUrl(string url)
     var porta = uri.Port > 0 ? uri.Port : 5432;
     var banco = uri.AbsolutePath.TrimStart('/');
     var senha = credenciais.Length > 1 ? Uri.UnescapeDataString(credenciais[1]) : "";
+    // VerifyFull valida o certificado e o hostname do banco (Neon usa certificados públicos válidos),
+    // evitando MITM. Não usar "Trust Server Certificate", que desliga a validação.
     return $"Host={uri.Host};Port={porta};Database={banco};" +
            $"Username={Uri.UnescapeDataString(credenciais[0])};Password={senha};" +
-           "SSL Mode=Require;Trust Server Certificate=true";
+           "SSL Mode=VerifyFull";
 }
